@@ -31,22 +31,31 @@ class VideoCallApp {
   async init() {
     console.log('[App] Initializing...');
     
+    // Ждём загрузки DOM
+    if (document.readyState === 'loading') {
+      await new Promise(resolve => document.addEventListener('DOMContentLoaded', resolve));
+      console.log('[App] DOM loaded');
+    }
+
     // Инициализация UI
     this.ui = new UI(this);
-    
+    console.log('[App] UI initialized, elements cached');
+
     // Подключение к серверу
     this.socket = new SocketClient(this);
     await this.socket.connect();
-    
+    console.log('[App] Socket connected');
+
     // Инициализация WebRTC
     this.webrtc = new WebRTCClient(this);
-    
+
     // Инициализация чата
     this.chat = new Chat(this);
-    
+
     // Настройка обработчиков событий
     this.setupEventListeners();
-    
+    console.log('[App] Event listeners setup');
+
     console.log('[App] Initialized');
   }
 
@@ -69,18 +78,33 @@ class VideoCallApp {
     });
   }
 
-  showNameInputOrCreate() {
-    const name = this.ui.promptForName();
-    this.name = name || NameGenerator.generate();
-    this.createRoom();
+  async showNameInputOrCreate() {
+    // Генерируем имя сразу (без модального окна для простоты)
+    this.name = NameGenerator.generate();
+    await this.createRoom();
   }
 
   async createRoom() {
     try {
+      console.log('[App] Creating room...');
       this.ui.showConnecting();
+      
+      // Сначала получаем медиа-потоки, потом создаём комнату
+      try {
+        this.localStream = await this.webrtc.getLocalStream();
+        console.log('[App] Local stream obtained, creating room...');
+      } catch (mediaError) {
+        console.error('[App] Get media error:', mediaError);
+        this.ui.hideConnecting();
+        this.ui.showError('Не удалось получить доступ к камере/микрофону. Проверьте разрешения.');
+        return;
+      }
+      
+      // Создаём комнату через сокет
       this.socket.createRoom(this.sessionId, this.name);
     } catch (error) {
       console.error('[App] Create room error:', error);
+      this.ui.hideConnecting();
       this.ui.showError('Не удалось создать комнату. Попробуйте позже.');
     }
   }
@@ -109,15 +133,15 @@ class VideoCallApp {
   async onRoomCreated(roomCode) {
     console.log('[App] Room created:', roomCode);
     this.roomCode = roomCode;
-    
-    // Получаем медиа-потоки
+
+    // Камера уже запрошена в createRoom(), показываем экран комнаты
     try {
-      this.localStream = await this.webrtc.getLocalStream();
       await this.ui.showRoomScreen(roomCode, this.name, true);
       this.chat.init();
+      console.log('[App] Room screen shown, ready!');
     } catch (error) {
-      console.error('[App] Get media error:', error);
-      this.ui.showError('Не удалось получить доступ к камере/микрофону');
+      console.error('[App] Show room screen error:', error);
+      this.ui.showError('Ошибка отображения комнаты');
     }
   }
 

@@ -7,12 +7,17 @@ export class UI {
     this.app = app;
     this.elements = {};
     this.isChatOpen = false;
+    
+    // Кэшируем элементы сразу после создания
+    this.cacheElements();
   }
 
   /**
    * Кэширование DOM элементов
    */
   cacheElements() {
+    console.log('[UI] Caching elements...');
+    
     // Landing screen
     this.elements.landingScreen = document.getElementById('landing-screen');
     this.elements.createRoomBtn = document.getElementById('create-room-btn');
@@ -26,7 +31,7 @@ export class UI {
     this.elements.videoGrid = document.getElementById('video-grid');
     this.elements.roomCodeText = document.getElementById('room-code-text');
     this.elements.copyCodeBtn = document.getElementById('copy-code-btn');
-    
+
     // Controls
     this.elements.toggleAudioBtn = document.getElementById('toggle-audio-btn');
     this.elements.toggleVideoBtn = document.getElementById('toggle-video-btn');
@@ -34,7 +39,7 @@ export class UI {
     this.elements.toggleChatBtn = document.getElementById('toggle-chat-btn');
     this.elements.leaveRoomBtn = document.getElementById('leave-room-btn');
     this.elements.settingsBtn = document.getElementById('settings-btn');
-    
+
     // Chat
     this.elements.chatPanel = document.getElementById('chat-panel');
     this.elements.chatMessages = document.getElementById('chat-messages');
@@ -43,18 +48,25 @@ export class UI {
     this.elements.toggleChatBtn = document.getElementById('toggle-chat-btn');
     this.elements.closeChatBtn = document.getElementById('close-chat-btn');
     this.elements.typingIndicator = document.getElementById('typing-indicator');
-    
+
     // Settings modal
     this.elements.settingsModal = document.getElementById('settings-modal');
     this.elements.closeSettingsBtn = document.getElementById('close-settings-btn');
     this.elements.cameraSelect = document.getElementById('camera-select');
     this.elements.microphoneSelect = document.getElementById('microphone-select');
-    
+
     // Error modal
     this.elements.errorModal = document.getElementById('error-modal');
     this.elements.errorMessage = document.getElementById('error-message');
     this.elements.closeErrorBtn = document.getElementById('close-error-btn');
     this.elements.errorOkBtn = document.getElementById('error-ok-btn');
+    
+    console.log('[UI] Elements cached:', {
+      landingScreen: !!this.elements.landingScreen,
+      createRoomBtn: !!this.elements.createRoomBtn,
+      roomScreen: !!this.elements.roomScreen,
+      videoGrid: !!this.elements.videoGrid
+    });
   }
 
   /**
@@ -85,23 +97,36 @@ export class UI {
    * Показ экрана комнаты
    */
   async showRoomScreen(roomCode, name, isCreator) {
+    console.log('[UI] Showing room screen...', { roomCode, name, isCreator });
+    console.log('[UI] Elements:', {
+      landingScreen: !!this.elements.landingScreen,
+      roomScreen: !!this.elements.roomScreen,
+      videoGrid: !!this.elements.videoGrid
+    });
+    
     this.hideConnecting();
     this.elements.landingScreen?.classList.remove('active');
     this.elements.roomScreen?.classList.add('active');
-    
+    console.log('[UI] Screen classes updated');
+
     // Обновляем код комнаты
     if (this.elements.roomCodeText) {
       this.elements.roomCodeText.textContent = roomCode;
+      console.log('[UI] Room code set:', roomCode);
     }
-    
+
     // Добавляем локальное видео
     if (this.app.localStream) {
+      console.log('[UI] Adding local video');
       this.addLocalVideo(name);
+    } else {
+      console.warn('[UI] No local stream!');
     }
-    
+
     // Setup controls
     this.setupRoomControls();
-    
+    console.log('[UI] Room controls setup');
+
     console.log('[UI] Room screen shown:', roomCode);
   }
 

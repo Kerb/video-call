@@ -6,12 +6,19 @@ export class Chat {
   constructor(app) {
     this.app = app;
     this.typingTimeout = null;
+    this.initialized = false;
   }
 
   /**
    * Инициализация чата
    */
   init() {
+    // Предотвращаем повторную инициализацию
+    if (this.initialized) {
+      return;
+    }
+    this.initialized = true;
+    
     const chatInput = document.getElementById('chat-input');
     const sendBtn = document.getElementById('send-chat-btn');
 
