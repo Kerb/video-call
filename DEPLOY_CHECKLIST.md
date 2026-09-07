@@ -12,8 +12,11 @@
 - [ ] `client/name-generator.js` — существует
 - [ ] `server/server.js` — существует, CORS настроен на `origin: true` для production
 - [ ] `server/package.json` — express и socket.io в dependencies
-- [ ] `railway.json` — в корне проекта
-- [ ] `nixpacks.toml` — в корне проекта
+- [ ] `server/nixpacks.toml` — инструкция сборки Nixpacks
+- [ ] `railway.json` — в корне проекта, содержит `rootDirectory: "server"`
+- [ ] **Удалить лишние файлы:**
+  - [ ] `server/Procfile` — не нужен (используется Nixpacks)
+  - [ ] `server/railway.json` — дубликат, используется только корневой
 
 ## GitHub
 
@@ -24,8 +27,8 @@
 ## Railway
 
 - [ ] Проект создан через "Deploy from GitHub"
-- [ ] Root Directory: (пусто — используется корень)
-- [ ] Start Command: `node server/server.js`
+- [ ] Root Directory: (пусто — переопределится из `railway.json`)
+- [ ] Start Command: `node server.js` (переопределится из `railway.json`)
 - [ ] Переменные окружения добавлены:
   - [ ] `NODE_ENV=production`
   - [ ] `PORT=3001`

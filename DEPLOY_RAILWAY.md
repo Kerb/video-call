@@ -51,8 +51,8 @@ project/
 
 ### 1.2 Файлы для Railway (уже созданы)
 
-- ✅ `railway.json` — конфигурация деплоя
-- ✅ `nixpacks.toml` — инструкция сборки
+- ✅ `railway.json` — в корне проекта, указывает `rootDirectory: "server"`
+- ✅ `server/nixpacks.toml` — инструкция сборки для Nixpacks
 
 ---
 
@@ -84,11 +84,11 @@ git push -u origin main
 
 ### 3.2 Настройка
 
-Railway автоматически распознает `nixpacks.toml` из корня проекта.
+**Важно:** Не меняйте Root Directory в UI Railway — файл `railway.json` в корне проекта уже содержит настройку `rootDirectory: "server"`, которая будет использована автоматически.
 
 **Проверьте настройки:**
-- **Root Directory**: (оставьте пустым — используется корень)
-- **Start Command**: `node server/server.js`
+- **Root Directory**: (оставьте пустым — переопределится из `railway.json`)
+- **Start Command**: `node server.js` (переопределится из `railway.json`)
 
 ### 3.3 Переменные окружения
 
@@ -132,6 +132,25 @@ Railway автоматически распознает `nixpacks.toml` из к�
 ---
 
 ## Как это работает
+
+### Конфигурация Railway
+
+Файл `railway.json` в корне проекта указывает:
+```json
+{
+  "build": {
+    "rootDirectory": "server"
+  },
+  "deploy": {
+    "startCommand": "node server.js"
+  }
+}
+```
+
+Это означает, что Railway:
+1. Использует `server/` как корневую директорию для сборки и запуска
+2. Запускает `node server.js` (относительно `server/`)
+3. Nixpacks читает `server/nixpacks.toml` для инструкции сборки
 
 ### Сервер отдаёт статику
 
