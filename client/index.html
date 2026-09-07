@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VideoCall - Браузерные видеозвонки</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Главный экран: создание/вход в комнату -->
+    <div id="landing-screen" class="screen active">
+      <div class="landing-container">
+        <h1>📹 VideoCall</h1>
+        <p class="subtitle">Быстрые видеозвонки без регистрации</p>
+        
+        <div class="landing-form">
+          <button id="create-room-btn" class="btn btn-primary btn-large">
+            Создать комнату
+          </button>
+          
+          <div class="divider">
+            <span>или</span>
+          </div>
+          
+          <div class="join-form">
+            <input 
+              type="text" 
+              id="room-code-input" 
+              placeholder="Введите код комнаты"
+              maxlength="6"
+              autocomplete="off"
+            >
+            <input 
+              type="text" 
+              id="join-name-input" 
+              placeholder="Ваше имя (необязательно)"
+              autocomplete="off"
+            >
+            <button id="join-room-btn" class="btn btn-primary">
+              Войти в комнату
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Экран комнаты -->
+    <div id="room-screen" class="screen">
+      <!-- Индикатор подключения -->
+      <div id="connecting-indicator" class="connecting-indicator">
+        <div class="spinner"></div>
+        <p>Подключение к комнате...</p>
+      </div>
+
+      <!-- Сетка видеопотоков -->
+      <div id="video-grid" class="video-grid">
+        <!-- Видео участников добавляются динамически -->
+      </div>
+
+      <!-- Панель управления -->
+      <div id="controls-panel" class="controls-panel">
+        <div class="controls-left">
+          <button id="toggle-audio-btn" class="btn-control active" title="Включить/выключить звук">
+            <span class="icon">🎤</span>
+          </button>
+          <button id="toggle-video-btn" class="btn-control active" title="Включить/выключить видео">
+            <span class="icon">📹</span>
+          </button>
+          <button id="screen-share-btn" class="btn-control" title="Демонстрировать экран">
+            <span class="icon">🖥️</span>
+          </button>
+          <button id="toggle-chat-btn" class="btn-control" title="Показать чат">
+            <span class="icon">💬</span>
+          </button>
+        </div>
+        
+        <div class="controls-center">
+          <div id="room-code-display" class="room-code-display">
+            <span id="room-code-text">ABC123</span>
+            <button id="copy-code-btn" class="btn-icon" title="Копировать код">
+              <span class="icon">📋</span>
+            </button>
+          </div>
+        </div>
+        
+        <div class="controls-right">
+          <button id="settings-btn" class="btn-control" title="Настройки">
+            <span class="icon">⚙️</span>
+          </button>
+          <button id="leave-room-btn" class="btn-control btn-danger" title="Выйти">
+            <span class="icon">📴</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Чат -->
+      <div id="chat-panel" class="chat-panel hidden">
+        <div class="chat-header">
+          <h3>Чат</h3>
+          <button id="close-chat-btn" class="btn-icon">✕</button>
+        </div>
+        <div id="chat-messages" class="chat-messages">
+          <!-- Сообщения добавляются динамически -->
+        </div>
+        <div class="chat-input-container">
+          <div id="typing-indicator" class="typing-indicator hidden"></div>
+          <input 
+            type="text" 
+            id="chat-input" 
+            placeholder="Введите сообщение..."
+            maxlength="1000"
+          >
+          <button id="send-chat-btn" class="btn-primary">➤</button>
+        </div>
+      </div>
+
+      <!-- Модальное окно настроек -->
+      <div id="settings-modal" class="modal hidden">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h2>Настройки</h2>
+            <button id="close-settings-btn" class="btn-icon">✕</button>
+          </div>
+          <div class="modal-body">
+            <div class="setting-group">
+              <label for="camera-select">Камера:</label>
+              <select id="camera-select"></select>
+            </div>
+            <div class="setting-group">
+              <label for="microphone-select">Микрофон:</label>
+              <select id="microphone-select"></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Модальное окно ошибок -->
+      <div id="error-modal" class="modal hidden">
+        <div class="modal-content modal-error">
+          <div class="modal-header">
+            <h2>⚠️ Ошибка</h2>
+            <button id="close-error-btn" class="btn-icon">✕</button>
+          </div>
+          <div class="modal-body">
+            <p id="error-message"></p>
+          </div>
+          <div class="modal-footer">
+            <button id="error-ok-btn" class="btn btn-primary">OK</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Глобальная переменная для URL сервера
+    // Замените на ваш Railway URL после деплоя
+    // Формат: https://your-project-production.up.railway.app
+    window.SOCKET_URL = 'https://YOUR_RAILWAY_URL.up.railway.app';
+  </script>
+  <script type="module" src="main.js"></script>
+</body>
+</html>

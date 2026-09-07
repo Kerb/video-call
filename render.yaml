@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: browser-video-call
+    env: node
+    region: frankfurt
+    plan: free
+    buildCommand: cd server && npm install
+    startCommand: cd server && node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: CLIENT_URL
+        value: https://browser-video-call.vercel.app
+    healthCheckPath: /

@@ -1,0 +1,12 @@
+{
+  "name": "browser-video-call-client",
+  "version": "1.0.0",
+  "description": "Browser-based video call client using WebRTC",
+  "type": "module",
+  "scripts": {
+    "serve": "npx serve ."
+  },
+  "keywords": ["webrtc", "video-call"],
+  "author": "",
+  "license": "MIT"
+}
