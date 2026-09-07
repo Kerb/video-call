@@ -1,10 +1,14 @@
+# Railway Configuration
+# Этот файл указывает Railway использовать server/ как корневую директорию
+
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
+    "builder": "NIXPACKS",
+    "rootDirectory": "server"
   },
   "deploy": {
-    "startCommand": "node server/server.js",
+    "startCommand": "node server.js",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/",
