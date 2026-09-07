@@ -7,8 +7,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
-    methods: ['GET', 'POST']
+    // В production разрешаем все origins (клиент и сервер на одном домене)
+    origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
+    methods: ['GET', 'POST'],
+    credentials: true
   }
 });
 
@@ -280,6 +282,7 @@ io.on('connection', (socket) => {
 
 // Serve static files from client directory in production
 if (process.env.NODE_ENV === 'production') {
+  const path = require('path');
   app.use(express.static(path.join(__dirname, '../client')));
   
   app.get('*', (req, res) => {

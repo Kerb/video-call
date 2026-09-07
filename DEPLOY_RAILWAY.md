@@ -1,214 +1,297 @@
-# 🚀 Деплой на Railway
+# 🚀 Деплой на Railway — Полная инструкция
 
-Пошаговая инструкция по деплою сервера VideoCall на Railway.
-
-## Предварительные требования
-
-- Аккаунт на GitHub
-- Аккаунт на [Railway.app](https://railway.app)
-- Код проекта загружен в GitHub репозиторий
+Размещение **и клиента, и сервера** на Railway в одном проекте.
 
 ---
 
-## Шаг 1: Подготовка сервера
+## Архитектура
 
-### 1.1 Проверьте файлы
+```
+┌─────────────────────────────────────┐
+│         Railway Project             │
+│  https://your-app.up.railway.app    │
+├─────────────────────────────────────┤
+│  /server  → Node.js + Socket.io     │
+│  /client  → Статические файлы       │
+└─────────────────────────────────────┘
+```
 
-Убедитесь, что в папке `server/` есть:
-- ✅ `package.json` — с зависимостями express и socket.io
-- ✅ `server.js` — основной файл сервера
-- ✅ `.env.example` — шаблон переменных окружения
+Сервер отдаёт статические файлы клиента через Express.
+
+**Преимущества:**
+- ✅ Один проект вместо двух
+- ✅ Нет CORS проблем (клиент и сервер на одном домене)
+- ✅ HTTPS автоматически
+- ✅ Автоматический деплой при git push
+
+---
+
+## Шаг 1: Подготовка
+
+### 1.1 Проверьте структуру
+
+```
+project/
+├── client/           # Фронтенд
+│   ├── index.html
+│   ├── styles.css
+│   ├── main.js
+│   ├── webrtc.js
+│   ├── socket.js
+│   ├── ui.js
+│   ├── chat.js
+│   └── name-generator.js
+├── server/           # Сервер
+│   ├── server.js
+│   └── package.json
+├── railway.json      # Конфиг Railway
+├── nixpacks.toml     # Инструкция сборки
+└── README.md
+```
 
 ### 1.2 Файлы для Railway (уже созданы)
 
-- `railway.json` — конфигурация деплоя
-- `nixpacks.toml` — инструкция сборки для Railway
+- ✅ `railway.json` — конфигурация деплоя
+- ✅ `nixpacks.toml` — инструкция сборки
 
 ---
 
-## Шаг 2: Деплой на Railway
+## Шаг 2: Загрузка на GitHub
 
-### 2.1 Создание проекта
+1. Создайте репозиторий на GitHub
+2. Загрузите все файлы проекта
+3. Убедитесь, что `.gitignore` исключает `node_modules/` и `.env`
+
+```bash
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin <your-repo-url>
+git push -u origin main
+```
+
+---
+
+## Шаг 3: Деплой на Railway
+
+### 3.1 Создание проекта
 
 1. Зайдите на [railway.app](https://railway.app)
 2. Нажмите **"New Project"**
 3. Выберите **"Deploy from GitHub repo"**
-4. Авторизуйтесь через GitHub (если нужно)
-5. Найдите и выберите ваш репозиторий с проектом
+4. Авторизуйтесь через GitHub
+5. Найдите и выберите ваш репозиторий
 
-### 2.2 Настройка сервиса
+### 3.2 Настройка
 
-1. Railway автоматически обнаружит `server/` папку
-2. Если нет — нажмите на сервис → **"Settings"** → **"Root Directory"** → укажите `server`
+Railway автоматически распознает `nixpacks.toml` из корня проекта.
 
-### 2.3 Переменные окружения
+**Проверьте настройки:**
+- **Root Directory**: (оставьте пустым — используется корень)
+- **Start Command**: `node server/server.js`
+
+### 3.3 Переменные окружения
 
 В разделе **"Variables"** добавьте:
 
 | Ключ | Значение |
 |------|----------|
 | `NODE_ENV` | `production` |
-| `CLIENT_URL` | `https://your-app.vercel.app` (ваш фронтенд) |
+| `PORT` | `3001` (Railway может переопределить) |
 | `STUN_SERVERS` | `stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302` |
 
-> **Примечание:** `PORT` не нужно указывать — Railway автоматически задаёт эту переменную.
+> **Примечание:** `CLIENT_URL` не нужен — сервер и клиент на одном домене.
 
-### 2.4 Запуск деплоя
+### 3.4 Запуск деплоя
 
 1. Перейдите на вкладку **"Deployments"**
-2. Railway автоматически запустит сборку
-3. Дождитесь завершения (статус **"SUCCESS"**)
-4. Скопируйте URL сервиса (вида `https://your-project-production.up.railway.app`)
-
----
-
-## Шаг 3: Настройка фронтенда
-
-### 3.1 Обновите URL сервера
-
-В файле `client/index.html` найдите и замените:
-
-```javascript
-window.SOCKET_URL = 'https://YOUR_RAILWAY_URL.up.railway.app';
-```
-
-Вставьте ваш URL из Railway.
-
-### 3.2 Деплой фронтенда на Vercel
-
-1. Зайдите на [vercel.com](https://vercel.com)
-2. Нажмите **"Add New"** → **"Project"**
-3. Импортируйте ваш GitHub репозиторий
-4. Настройки:
-   - **Framework Preset**: `Other`
-   - **Root Directory**: `client`
-   - **Build Command**: (оставьте пустым)
-5. Нажмите **"Deploy"**
-
-### 3.3 Настройте CORS на Railway
-
-Вернитесь в Railway и обновите переменную:
-
-| Ключ | Значение |
-|------|----------|
-| `CLIENT_URL` | `https://your-app.vercel.app` (новый URL из Vercel) |
-
-Railway автоматически перезапустит сервер с новыми настройками.
+2. Railway запустит сборку автоматически
+3. Дождитесь статуса **"SUCCESS"**
+4. Скопируйте URL проекта (вида `https://your-project-production.up.railway.app`)
 
 ---
 
 ## Шаг 4: Проверка работы
 
-### 4.1 Откройте фронтенд
+### 4.1 Откройте приложение
 
-Перейдите на `https://your-app.vercel.app`
+Перейдите по вашему Railway URL.
 
-### 4.2 Создайте тестовую комнату
+### 4.2 Тестирование
 
 1. Нажмите **"Создать комнату"**
 2. Скопируйте код комнаты
-3. Откройте другую вкладку/браузер
+3. Откройте другую вкладку браузера
 4. Введите код и нажмите **"Войти в комнату"**
+5. Проверьте:
+   - ✅ Видео работает
+   - ✅ Аудио работает
+   - ✅ Чат отправляет сообщения
+   - ✅ Демонстрация экрана работает
 
-### 4.3 Проверьте соединение
+---
 
-- ✅ Видео и аудио работают
-- ✅ Чат отправляет сообщения
-- ✅ Демонстрация экрана работает
+## Как это работает
+
+### Сервер отдаёт статику
+
+В production режиме (`NODE_ENV=production`) сервер Express:
+
+```javascript
+// Раздаёт статические файлы из /client
+app.use(express.static(path.join(__dirname, '../client')));
+
+// Все запросы перенаправляет на index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../client/index.html'));
+});
+```
+
+### Клиент подключается к тому же домену
+
+```javascript
+// SOCKET_URL = текущий домен
+window.SOCKET_URL = window.location.origin;
+```
+
+Это означает, что если вы зашли на `https://app.up.railway.app`, клиент подключится к `https://app.up.railway.app` — там же, где сервер.
+
+---
+
+## Обновление приложения
+
+```bash
+# Внесите изменения в код
+git add .
+git commit -m "Update feature"
+git push
+```
+
+Railway автоматически перезапустит деплой при каждом push в GitHub.
 
 ---
 
 ## Troubleshooting
 
-### Ошибка CORS
+### 404 на статических файлах
 
-**Симптомы:** В консоли ошибка "CORS policy" или "Access-Control-Allow-Origin"
+**Проблема:** `index.html` загружается, но CSS/JS не находятся
 
 **Решение:**
-1. Проверьте `CLIENT_URL` в Railway — должен точно совпадать с URL на Vercel
-2. Убедитесь, что нет trailing slash (`https://app.vercel.app` ✅, `https://app.vercel.app/` ❌)
-3. Перезапустите сервер в Railway (Deployments → Redeploy)
+1. Проверьте пути в `index.html`:
+   ```html
+   <link rel="stylesheet" href="styles.css">
+   <script src="/socket.io/socket.io.js"></script>
+   ```
+2. Убедитесь, что все файлы в папке `client/`
+3. Проверьте логи Railway на ошибки
 
 ### WebSocket не подключается
 
-**Симптомы:** Бесконечное "Подключение к комнате..."
+**Проблема:** Бесконечное "Подключение к комнате..."
 
 **Решение:**
-1. Проверьте `SOCKET_URL` в `client/index.html`
-2. Убедитесь, что URL начинается с `https://`
-3. Проверьте консоль браузера на ошибки
+1. Проверьте консоль браузера (F12)
+2. Убедитесь, что `window.SOCKET_URL` установлен правильно
+3. Проверьте, что сервер запущен (логи Railway)
 
-### WebRTC не работает (чёрный экран вместо видео)
+### CORS ошибка
 
-**Симптомы:** Видео не передаётся между участниками
+**Проблема:** Ошибка "Access-Control-Allow-Origin"
 
 **Решение:**
-1. Убедитесь, что браузер разрешил доступ к камере/микрофону
-2. Проверьте, что соединение HTTPS (требуется для WebRTC)
-3. Попробуйте добавить TURN-сервер (см. ниже)
+1. Проверьте `server.js` — CORS должен разрешать текущий домен:
+   ```javascript
+   const io = new Server(server, {
+     cors: {
+       origin: true, // Разрешить все origins (для production)
+       methods: ['GET', 'POST']
+     }
+   });
+   ```
+2. Или укажите конкретный домен:
+   ```javascript
+   origin: 'https://your-app.up.railway.app'
+   ```
+
+### WebRTC не работает
+
+**Проблема:** Чёрный экран вместо видео
+
+**Решение:**
+1. Убедитесь, что HTTPS используется (Railway автоматически)
+2. Разрешите доступ к камере/микрофону в браузере
+3. Проверьте консоль на ошибки WebRTC
 
 ---
 
-## Добавление TURN-сервера (опционально)
+## Добавление TURN-сервера
 
-Если ~10-20% пользователей не могут подключиться (за симметричным NAT), добавьте TURN:
+Если пользователи за симметричным NAT не могут подключиться:
 
-### 1. Развёртывание coturn на Railway
+### 1. Разверните coturn на отдельном Railway проекте
 
-1. Создайте новый проект на Railway для TURN
-2. Используйте Docker-образ: `coturn/coturn`
-3. Настройте переменные:
-   - `TURN_USERNAME`: `videocall`
-   - `TURN_PASSWORD`: `<secure-password>`
-   - `TURN_REALM`: `videocall`
+1. Создайте новый проект Railway
+2. Используйте Docker-образ `coturn/coturn`
+3. Настройте переменные TURN
 
-### 2. Добавьте TURN в сервер
+### 2. Добавьте TURN в основной проект
 
-В Railway (сервер) добавьте переменные:
+В Railway Variables:
 
 ```env
-TURN_SERVERS=turn:your-turn-project-production.up.railway.app:3478
+TURN_SERVERS=turn:your-turn-project.up.railway.app:3478
 TURN_USERNAME=videocall
 TURN_PASSWORD=<secure-password>
 ```
 
 ### 3. Обновите `server/server.js`
 
-Добавьте TURN в конфигурацию ICE серверов (отправляется клиентам через signaling).
+Передавайте TURN конфигурацию клиентам через signaling.
 
 ---
 
-## Мониторинг и логи
+## Мониторинг
 
-### Просмотр логов
+### Логи
 
-1. Railway Dashboard → Ваш проект → **"Logs"**
-2. Фильтруйте по уровню (INFO, ERROR)
-3. Ищите сообщения `[Server]`, `[Socket]`, `[Room]`
+Railway Dashboard → Проект → **"Logs"**
 
-### Перезапуск сервера
+Ищите:
+- `[Server] Signaling server running on port...`
+- `[Socket] Connected...`
+- `[Room] Created...`
 
-- **Автоматически**: Railway перезапустит при падении
+### Перезапуск
+
+- **Автоматически**: при падении
 - **Вручную**: Deployments → **"Redeploy"**
-
-### Масштабирование
-
-Railway автоматически масштабирует при нагрузке. Для ручного управления:
-- Settings → **"Scaling"** → Выберите план (Hobby/Pro)
 
 ---
 
 ## Стоимость
 
-- **Hobby план**: $5/месяц, 500 часов работы
-- **Pro план**: $20/месяц, неограниченно
+- **Hobby**: $5/месяц, 500 часов
+- **Pro**: $20/месяц, без ограничений
 
-Для небольшого проекта достаточно Hobby плана.
+Одного проекта Hobby достаточно для небольшого приложения.
+
+---
+
+## Домен (опционально)
+
+### Кастомный домен на Railway
+
+1. Railway Dashboard → Проект → **"Settings"**
+2. **"Domains"** → **"Add Domain"**
+3. Введите ваш домен
+4. Настройте DNS (CNAME запись)
+5. Railway автоматически выдаст SSL-сертификат
 
 ---
 
 ## Полезные ссылки
 
 - [Railway Docs](https://docs.railway.app)
-- [Railway Pricing](https://railway.app/pricing)
 - [Nixpacks Docs](https://nixpacks.com)
+- [Railway Variables](https://docs.railway.app/develop/variables)

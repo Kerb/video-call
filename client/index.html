@@ -156,9 +156,8 @@
   <script src="/socket.io/socket.io.js"></script>
   <script>
     // Глобальная переменная для URL сервера
-    // Замените на ваш Railway URL после деплоя
-    // Формат: https://your-project-production.up.railway.app
-    window.SOCKET_URL = 'https://YOUR_RAILWAY_URL.up.railway.app';
+    // Для production: Railway автоматически подставит текущий домен
+    window.SOCKET_URL = window.location.origin;
   </script>
   <script type="module" src="main.js"></script>
 </body>

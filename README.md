@@ -117,35 +117,38 @@ TURN_PASSWORD=your-password
 
 ## Деплой
 
-### Быстрый деплой (рекомендуется)
-
-**Фронтенд → Vercel, Сервер → Railway**
+### Всё на Railway (рекомендуется)
 
 📖 Подробная инструкция: [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md)
 
-**1. Сервер на Railway:**
+**Один деплой для всего:**
 ```bash
-# Файлы уже готовы: railway.json, nixpacks.toml
-# Railway.app → New Project → Deploy from GitHub repo
-# Root Directory: server
-# Variables: CLIENT_URL, STUN_SERVERS
+# Railway.app → New Project → Deploy from GitHub
+# Railway автоматически соберёт и сервер, и клиент
+# URL: https://your-app.up.railway.app
 ```
 
-**2. Фронтенд на Vercel:**
-```bash
-# Vercel.com → Add Project → Import GitHub repo
-# Root Directory: client
-# В client/index.html укажите ваш Railway URL
+**Структура деплоя:**
+```
+┌─────────────────────────────────────┐
+│    Railway Project (один)           │
+│  https://your-app.up.railway.app    │
+├─────────────────────────────────────┤
+│  /server  → Node.js + Socket.io     │
+│  /client  → Статические файлы       │
+└─────────────────────────────────────┘
 ```
 
-**3. Настройка CORS:**
-- В Railway задайте `CLIENT_URL` = ваш Vercel URL
-- Сервер автоматически перезапустится
+**Преимущества:**
+- ✅ Один проект вместо двух
+- ✅ Нет CORS проблем (клиент и сервер на одном домене)
+- ✅ HTTPS автоматически
+- ✅ Автоматический деплой при git push
+- ✅ Бесплатный тариф: $5/месяц, 500 часов
 
-### Альтернативные варианты
+### Альтернатива: VPS
 
-- **Всё на Render.com** — см. [render.yaml](render.yaml)
-- **VPS** — Ubuntu/Debian с Nginx + PM2 + Let's Encrypt (см. [DEPLOY.md](DEPLOY.md))
+Ubuntu/Debian с Nginx + PM2 + Let's Encrypt (см. [DEPLOY_RAILWAY.md](DEPLOY_RAILWAY.md))
 
 ## Тестирование
 
