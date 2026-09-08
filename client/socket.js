@@ -3,8 +3,10 @@
  * Handles signaling communication with the server
  */
 export class SocketClient {
-  constructor(app) {
+  // ioFactory внедряется в тестах; в браузере это глобальный io из CDN-скрипта
+  constructor(app, ioFactory = () => globalThis.io) {
     this.app = app;
+    this.ioFactory = ioFactory;
     this.socket = null;
     this.connected = false;
   }
@@ -13,11 +15,10 @@ export class SocketClient {
    * Подключение к серверу
    */
   async connect() {
-    // Для Vercel: используем переменную окружения или URL сервера из конфига
-    const serverUrl = window.SOCKET_URL || process.env.SOCKET_URL || window.location.origin;
-    
+    const serverUrl = window.SOCKET_URL || window.location.origin;
+
     return new Promise((resolve, reject) => {
-      this.socket = io(serverUrl, {
+      this.socket = this.ioFactory()(serverUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 10,
@@ -33,7 +34,7 @@ export class SocketClient {
       this.socket.on('disconnect', (reason) => {
         console.log('[Socket] Disconnected:', reason);
         this.connected = false;
-        
+
         // При переподключении пытаемся вернуться в комнату
         if (this.app.roomCode && reason !== 'io server disconnect') {
           setTimeout(() => {
@@ -96,21 +97,21 @@ export class SocketClient {
       this.app.onUserLeft(data.sessionId);
     });
 
-    // WebRTC Offer
+    // WebRTC Offer. Сервер релеит по sessionId и указывает отправителя в fromSessionId
     this.socket.on('offer', async (data) => {
-      console.log('[Socket] Offer received from:', data.fromSocketId);
-      await this.app.handleOffer(data.offer, data.sessionId, data.name || 'Unknown');
+      console.log('[Socket] Offer received from:', data.fromSessionId);
+      await this.app.handleOffer(data.offer, data.fromSessionId, data.name || 'Unknown');
     });
 
     // WebRTC Answer
     this.socket.on('answer', async (data) => {
-      console.log('[Socket] Answer received from:', data.fromSocketId);
-      await this.app.handleAnswer(data.answer, data.sessionId);
+      console.log('[Socket] Answer received from:', data.fromSessionId);
+      await this.app.handleAnswer(data.answer, data.fromSessionId);
     });
 
     // ICE Candidate
     this.socket.on('ice-candidate', async (data) => {
-      await this.app.handleIceCandidate(data.candidate, data.sessionId);
+      await this.app.handleIceCandidate(data.candidate, data.fromSessionId);
     });
 
     // Chat message
@@ -146,18 +147,19 @@ export class SocketClient {
       console.log('[Socket] Attempting to rejoin room:', this.app.roomCode);
       this.socket.emit('rejoin-room', {
         sessionId: this.app.sessionId,
-        roomCode: this.app.roomCode
+        roomCode: this.app.roomCode,
+        name: this.app.name
       });
     }
   }
 
   /**
-   * Отправка WebRTC offer
+   * Отправка WebRTC offer. Адресат — sessionId пира:
+   * сервер сам резолвит его в socketId получателя
    */
   sendOffer(targetSessionId, offer) {
     this.socket.emit('offer', {
-      targetSocketId: this.app.socket.socket.id,
-      sessionId: targetSessionId,
+      targetSessionId,
       roomCode: this.app.roomCode,
       offer
     });
@@ -168,8 +170,7 @@ export class SocketClient {
    */
   sendAnswer(targetSessionId, answer) {
     this.socket.emit('answer', {
-      targetSocketId: this.app.socket.socket.id,
-      sessionId: targetSessionId,
+      targetSessionId,
       roomCode: this.app.roomCode,
       answer
     });
@@ -180,8 +181,7 @@ export class SocketClient {
    */
   sendIceCandidate(targetSessionId, candidate) {
     this.socket.emit('ice-candidate', {
-      targetSocketId: this.app.socket.socket.id,
-      sessionId: targetSessionId,
+      targetSessionId,
       roomCode: this.app.roomCode,
       candidate
     });

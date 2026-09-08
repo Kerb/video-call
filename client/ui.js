@@ -75,8 +75,8 @@ export class UI {
   showLandingScreen() {
     this.elements.landingScreen?.classList.add('active');
     this.elements.roomScreen?.classList.remove('active');
-    this.elements.roomCodeInput.value = '';
-    this.elements.joinNameInput.value = '';
+    if (this.elements.roomCodeInput) this.elements.roomCodeInput.value = '';
+    if (this.elements.joinNameInput) this.elements.joinNameInput.value = '';
   }
 
   /**
@@ -131,30 +131,42 @@ export class UI {
   }
 
   /**
+   * Бейдж с именем участника (имя — пользовательский ввод, вставляем через textContent)
+   */
+  createNameBadge(name, suffix = '') {
+    const nameDiv = document.createElement('div');
+    nameDiv.className = 'participant-name';
+
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar';
+    avatar.textContent = name.charAt(0).toUpperCase();
+
+    const label = document.createElement('span');
+    label.textContent = `${name}${suffix}`;
+
+    nameDiv.appendChild(avatar);
+    nameDiv.appendChild(label);
+    return nameDiv;
+  }
+
+  /**
    * Добавление локального видео
    */
   addLocalVideo(name) {
     const container = document.createElement('div');
     container.className = 'video-container';
     container.id = 'video-local';
-    
+
     const video = document.createElement('video');
     video.srcObject = this.app.localStream;
     video.autoplay = true;
     video.playsInline = true;
     video.muted = true; // Mute local video to prevent feedback
-    
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'participant-name';
-    nameDiv.innerHTML = `
-      <span class="avatar">${name.charAt(0).toUpperCase()}</span>
-      <span>${name} (вы)</span>
-    `;
-    
+
     container.appendChild(video);
-    container.appendChild(nameDiv);
+    container.appendChild(this.createNameBadge(name, ' (вы)'));
     this.elements.videoGrid?.appendChild(container);
-    
+
     video.play().catch(console.error);
   }
 
@@ -167,29 +179,22 @@ export class UI {
     if (container) {
       return;
     }
-    
+
     container = document.createElement('div');
     container.className = 'video-container';
     container.id = `video-${sessionId}`;
-    
+
     const video = document.createElement('video');
     video.srcObject = stream;
     video.autoplay = true;
     video.playsInline = true;
-    
-    const nameDiv = document.createElement('div');
-    nameDiv.className = 'participant-name';
-    nameDiv.innerHTML = `
-      <span class="avatar">${name.charAt(0).toUpperCase()}</span>
-      <span>${name}</span>
-    `;
-    
+
     container.appendChild(video);
-    container.appendChild(nameDiv);
+    container.appendChild(this.createNameBadge(name));
     this.elements.videoGrid?.appendChild(container);
-    
+
     video.play().catch(console.error);
-    
+
     console.log('[UI] Remote video added:', sessionId);
   }
 
@@ -205,9 +210,14 @@ export class UI {
   }
 
   /**
-   * Настройка кнопок управления
+   * Настройка кнопок управления.
+   * Элементы кэшируются один раз и живут между входами в комнаты,
+   * поэтому обработчики вешаем строго однократно
    */
   setupRoomControls() {
+    if (this.controlsBound) return;
+    this.controlsBound = true;
+
     // Микрофон
     this.elements.toggleAudioBtn?.addEventListener('click', () => {
       const isEnabled = this.elements.toggleAudioBtn.classList.contains('active');
@@ -307,10 +317,10 @@ export class UI {
     });
     
     const isSelf = sessionId === this.app.sessionId;
-    
+
     messageDiv.innerHTML = `
       <div class="message-header">
-        <span class="sender-name">${isSelf ? 'Вы' : name}</span>
+        <span class="sender-name">${isSelf ? 'Вы' : this.escapeHtml(name)}</span>
         <span class="message-time">${time}</span>
       </div>
       <div class="message-text">${this.escapeHtml(text)}</div>
@@ -375,16 +385,21 @@ export class UI {
    */
   async showSettings() {
     const devices = await this.app.webrtc.getDevices();
-    
-    // Заполняем селекторы
-    this.elements.cameraSelect.innerHTML = devices.videoDevices.map(d => 
-      `<option value="${d.deviceId}">${d.label || `Камера ${d.deviceId.slice(0, 5)}...`}</option>`
-    ).join('');
-    
-    this.elements.microphoneSelect.innerHTML = devices.audioDevices.map(d => 
-      `<option value="${d.deviceId}">${d.label || `Микрофон ${d.deviceId.slice(0, 5)}...`}</option>`
-    ).join('');
-    
+
+    // Заполняем селекторы; label устройства — внешний ввод, вставляем через textContent
+    const fillSelect = (select, deviceList, fallbackPrefix) => {
+      select.innerHTML = '';
+      for (const device of deviceList) {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `${fallbackPrefix} ${String(device.deviceId).slice(0, 5)}...`;
+        select.appendChild(option);
+      }
+    };
+
+    fillSelect(this.elements.cameraSelect, devices.videoDevices, 'Камера');
+    fillSelect(this.elements.microphoneSelect, devices.audioDevices, 'Микрофон');
+
     this.elements.settingsModal?.classList.remove('hidden');
   }
 

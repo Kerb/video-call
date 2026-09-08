@@ -238,11 +238,13 @@ export class WebRTCClient {
    */
   async recreatePeerConnection(sessionId, name) {
     console.log('[WebRTC] Recreating peer connection for:', sessionId);
-    
+
     this.closePeerConnection(sessionId);
-    
-    // Пересоздаём как инициатор
-    await this.createPeerConnection(sessionId, name, true);
+
+    // Инициатора выбираем детерминированно, чтобы при одновременном
+    // пересоздании с обеих сторон offer отправлял только один пир
+    const isInitiator = this.app.sessionId > sessionId;
+    await this.createPeerConnection(sessionId, name, isInitiator);
   }
 
   /**

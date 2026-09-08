@@ -1,13 +1,15 @@
+# Railway Configuration
+# rootDirectory: "server" уже задан в корневом railway.json — сборка идёт
+# из server/, поэтому workingDirectory здесь не указывается.
+
 [phases.setup]
 nixPkgs = ["nodejs_18"]
 
 [phases.install]
 cmds = ["npm install"]
-workingDirectory = "server"
 
 [phases.build]
 cmds = ["echo 'Build complete'"]
 
 [start]
 cmd = "node server.js"
-workingDirectory = "server"

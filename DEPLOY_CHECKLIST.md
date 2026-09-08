@@ -11,6 +11,7 @@
 - [ ] `client/chat.js` — существует
 - [ ] `client/name-generator.js` — существует
 - [ ] `server/server.js` — существует, CORS настроен на `origin: true` для production
+- [ ] `server/rooms.js` — существует (логика комнат)
 - [ ] `server/package.json` — express и socket.io в dependencies
 - [ ] `server/nixpacks.toml` — инструкция сборки Nixpacks
 - [ ] `railway.json` — в корне проекта, содержит `rootDirectory: "server"`
@@ -31,8 +32,8 @@
 - [ ] Start Command: `node server.js` (переопределится из `railway.json`)
 - [ ] Переменные окружения добавлены:
   - [ ] `NODE_ENV=production`
-  - [ ] `PORT=3001`
-  - [ ] `STUN_SERVERS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302`
+  - [ ] `PORT` **не задавать** — Railway передаёт порт сам (пользовательская переменная сломает маршрутизацию)
+  - [ ] `STUN_SERVERS`/`TURN_*` не задавать — сервер их не читает (ICE в `client/webrtc.js`)
 
 ## После деплоя
 

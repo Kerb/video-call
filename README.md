@@ -24,7 +24,7 @@
 
 ### Требования
 
-- Node.js >= 16
+- Node.js >= 18 (для тестов и `npm run dev`; сам сервер запускается и на 16+)
 - npm или yarn
 - Современный браузер с поддержкой WebRTC (Chrome, Firefox, Safari, Edge)
 
@@ -33,7 +33,7 @@
 1. Клонируйте репозиторий:
 ```bash
 git clone <repository-url>
-cd browser-video-call
+cd <папка-проекта>
 ```
 
 2. Установите зависимости сервера:
@@ -45,6 +45,12 @@ npm install
 3. Установите зависимости клиента (опционально, для разработки):
 ```bash
 cd ../client
+npm install
+```
+
+4. Установите зависимости для тестов (в корне репозитория):
+```bash
+cd ..
 npm install
 ```
 
@@ -74,8 +80,8 @@ npx serve .
 ## Структура проекта
 
 ```
-browser-video-call/
-├── client/                 # Фронтенд
+vibe-opencall2/
+├── client/                 # Фронтенд (статические файлы без сборки)
 │   ├── index.html          # HTML-разметка
 │   ├── styles.css          # Стили (адаптивные)
 │   ├── main.js             # Точка входа
@@ -86,10 +92,20 @@ browser-video-call/
 │   ├── name-generator.js   # Генератор имён
 │   └── package.json
 ├── server/                 # Signaling-сервер
-│   ├── server.js           # Express + Socket.io
+│   ├── server.js           # Express + Socket.io (обработчики событий)
+│   ├── rooms.js            # Логика комнат: коды, участники, очистка
+│   ├── nixpacks.toml       # Сборка для Railway (Nixpacks)
 │   ├── .env.example        # Пример конфигурации
 │   └── package.json
-├── .gitignore
+├── tests/                  # Тесты (Vitest)
+│   ├── server/             # Юнит + интеграционные (реальный Socket.io)
+│   └── client/             # jsdom + стабы WebRTC API
+├── railway.json            # Конфиг деплоя Railway (rootDirectory: server)
+├── vitest.config.mjs
+├── package.json            # Зависимости для тестов
+├── DEPLOY_RAILWAY.md       # Инструкция по деплою
+├── DEPLOY_CHECKLIST.md     # Чеклист перед деплоем
+├── REVIEW.md               # Отчёт ревью и план покрытия тестами
 └── README.md
 ```
 
@@ -97,23 +113,23 @@ browser-video-call/
 
 ### Переменные окружения сервера
 
-Скопируйте `.env.example` в `.env` и настройте:
+Сервер читает переменные из окружения. Файл `.env` автоматически **не** загружается
+(dotenv не используется): локально передавайте переменные через shell,
+на Railway — через раздел Variables.
 
-```env
-PORT=3001
-CLIENT_URL=http://localhost:3000
-STUN_SERVERS=stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302
-```
+| Переменная | По умолчанию | Назначение |
+|------------|--------------|------------|
+| `PORT` | `3001` | Порт signaling-сервера. На Railway задавать не нужно — платформа передаёт его сама |
+| `NODE_ENV` | `development` | `production` — сервер дополнительно раздаёт статику клиента из `../client` |
+
+ICE-серверы (STUN) заданы в `client/webrtc.js`. Переменные `CLIENT_URL`,
+`STUN_SERVERS` и `TURN_*` сервером не читаются.
 
 ### TURN-серверы (для production)
 
-Для работы через симметричные NAT (~10-20% случаев) рекомендуется настроить TURN-сервер:
-
-```env
-TURN_SERVERS=turn:your-turn-server.com:3478
-TURN_USERNAME=your-username
-TURN_PASSWORD=your-password
-```
+TURN пока не поддерживается кодом (см. Roadmap). Для работы через симметричные
+NAT (~10-20% случаев) после реализации понадобится свой TURN-сервер (например,
+coturn), конфигурация будет передаваться клиенту через signaling.
 
 ## Деплой
 
@@ -152,6 +168,20 @@ Ubuntu/Debian с Nginx + PM2 + Let's Encrypt (см. [DEPLOY_RAILWAY.md](DEPLOY_R
 
 ## Тестирование
 
+### Автоматические тесты (Vitest)
+
+```bash
+npm install            # один раз, в корне репозитория
+npm test               # разовый прогон
+npm run test:coverage  # прогон с отчётом покрытия
+```
+
+Покрытие: сервер (`rooms.js`, `server.js`) — юнит- и интеграционные тесты
+с реальным Socket.io; клиент (`socket.js`, `webrtc.js`, `ui.js`, `chat.js`,
+`name-generator.js`) — jsdom со стабами WebRTC API. `main.js` unit-тестами
+не покрыт: модуль запускает приложение при импорте (нужен рефакторинг
+с внедрением зависимостей).
+
 ### Ручное тестирование
 
 1. **1-on-1 звонок**: Откройте два браузера/вкладки → создайте комнату → войдите
@@ -172,6 +202,8 @@ Ubuntu/Debian с Nginx + PM2 + Let's Encrypt (см. [DEPLOY_RAILWAY.md](DEPLOY_R
 - Нет TURN-сервера по умолчанию (может не работать за некоторыми NAT)
 - Нет записи звонков
 - Нет регистрации пользователей
+- История чата не хранится: вошедший позже не видит старые сообщения
+- Нет индикации активного говорящего
 
 ## Roadmap
 

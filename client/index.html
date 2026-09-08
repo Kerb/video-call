@@ -155,9 +155,12 @@
 
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    // Глобальная переменная для URL сервера
-    // Для production: Railway автоматически подставит текущий домен
-    window.SOCKET_URL = window.location.origin;
+    // Глобальная переменная для URL signaling-сервера.
+    // Production: тот же домен, что и клиент.
+    // Локальная разработка: клиент на :3000, сервер на :3001.
+    window.SOCKET_URL = (window.location.origin === 'http://localhost:3000')
+      ? 'http://localhost:3001'
+      : window.location.origin;
   </script>
   <script type="module" src="main.js"></script>
 </body>

@@ -6,5 +6,8 @@
       "Bash(git push)"
     ]
   },
-  "$version": 4
+  "$version": 4,
+  "memory": {
+    "enableAutoSkill": false
+  }
 }

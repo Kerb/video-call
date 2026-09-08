@@ -43,9 +43,10 @@ project/
 │   └── name-generator.js
 ├── server/           # Сервер
 │   ├── server.js
+│   ├── rooms.js
+│   ├── nixpacks.toml  # Инструкция сборки Nixpacks
 │   └── package.json
-├── railway.json      # Конфиг Railway
-├── nixpacks.toml     # Инструкция сборки
+├── railway.json      # Конфиг Railway (rootDirectory: server)
 └── README.md
 ```
 
@@ -97,10 +98,14 @@ git push -u origin main
 | Ключ | Значение |
 |------|----------|
 | `NODE_ENV` | `production` |
-| `PORT` | `3001` (Railway может переопределить) |
-| `STUN_SERVERS` | `stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302` |
 
-> **Примечание:** `CLIENT_URL` не нужен — сервер и клиент на одном домене.
+> **Важно:**
+> - `PORT` задавать **не нужно** — Railway сам передаёт порт через переменную
+>   `PORT`, и сервер слушает её (`process.env.PORT`). Пользовательская
+>   переменная `PORT` переопределит платформенную и сломает маршрутизацию.
+> - `CLIENT_URL` не нужен — сервер и клиент на одном домене.
+> - `STUN_SERVERS`/`TURN_*` сервером не читаются (ICE-конфигурация задана в
+>   `client/webrtc.js`).
 
 ### 3.4 Запуск деплоя
 
@@ -150,7 +155,10 @@ git push -u origin main
 Это означает, что Railway:
 1. Использует `server/` как корневую директорию для сборки и запуска
 2. Запускает `node server.js` (относительно `server/`)
-3. Nixpacks читает `server/nixpacks.toml` для инструкции сборки
+3. Nixpacks читает `server/nixpacks.toml` для инструкции сборки.
+   Так как `rootDirectory` уже указывает на `server/`, дополнительные
+   `workingDirectory` в `nixpacks.toml` не заданы (их указание вместе с
+   `rootDirectory` конфликтует)
 
 ### Сервер отдаёт статику
 
@@ -169,8 +177,10 @@ app.get('*', (req, res) => {
 ### Клиент подключается к тому же домену
 
 ```javascript
-// SOCKET_URL = текущий домен
-window.SOCKET_URL = window.location.origin;
+// Production: текущий домен; в локальной разработке — фолбэк на :3001
+window.SOCKET_URL = (window.location.origin === 'http://localhost:3000')
+  ? 'http://localhost:3001'
+  : window.location.origin;
 ```
 
 Это означает, что если вы зашли на `https://app.up.railway.app`, клиент подключится к `https://app.up.railway.app` — там же, где сервер.

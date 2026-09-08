@@ -1,298 +1,185 @@
 const express = require('express');
 const http = require('http');
-const { Server } = require('socket.io');
 const path = require('path');
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    // В production разрешаем все origins (клиент и сервер на одном домене)
-    origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
-});
+const { Server } = require('socket.io');
+const { RoomStore, sanitizeName } = require('./rooms');
 
 const PORT = process.env.PORT || 3001;
+const MAX_MESSAGE_LENGTH = 1000;
 
-// Хранение комнат: Map<code, Map<sessionId, {socketId, name}>>
-const rooms = new Map();
+function createSignalingServer({ roomStore, serveStatic = process.env.NODE_ENV === 'production' } = {}) {
+  const rooms = roomStore || new RoomStore();
 
-// Таймеры для очистки пустых комнат: Map<code, setTimeout>
-const roomTimers = new Map();
-
-// Очистка комнаты из памяти
-function cleanupRoom(roomCode) {
-  const room = rooms.get(roomCode);
-  if (room && room.size === 0) {
-    rooms.delete(roomCode);
-    const timer = roomTimers.get(roomCode);
-    if (timer) {
-      clearTimeout(timer);
-      roomTimers.delete(roomCode);
+  const app = express();
+  const server = http.createServer(app);
+  const io = new Server(server, {
+    cors: {
+      // В production клиент и сервер на одном домене; в dev клиент на :3000
+      origin: process.env.NODE_ENV === 'production' ? true : 'http://localhost:3000',
+      methods: ['GET', 'POST'],
+      credentials: true
     }
-    console.log(`[Room] ${roomCode} cleaned up`);
-  }
-}
-
-// Запуск таймера очистки для пустой комнаты
-function scheduleRoomCleanup(roomCode) {
-  const timer = setTimeout(() => {
-    cleanupRoom(roomCode);
-  }, 60 * 60 * 1000); // 60 минут
-  roomTimers.set(roomCode, timer);
-  console.log(`[Room] ${roomCode} scheduled for cleanup in 60 minutes`);
-}
-
-// Отмена таймера очистки если кто-то вернулся в комнату
-function cancelRoomCleanup(roomCode) {
-  const timer = roomTimers.get(roomCode);
-  if (timer) {
-    clearTimeout(timer);
-    roomTimers.delete(roomCode);
-    console.log(`[Room] ${roomCode} cleanup cancelled`);
-  }
-}
-
-// Генерация 6-значного кода комнаты (Base36)
-function generateRoomCode() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
-
-// Валидация формата кода комнаты (6 символов, латиница + цифры)
-function isValidRoomCode(code) {
-  return /^[A-Z0-9]{6}$/i.test(code);
-}
-
-// Обработка подключений Socket.io
-io.on('connection', (socket) => {
-  console.log(`[Socket] Connected: ${socket.id}`);
-
-  // Создание новой комнаты
-  socket.on('create-room', (data) => {
-    const { sessionId, name } = data;
-    let roomCode;
-    let attempts = 0;
-    
-    // Генерируем уникальный код
-    do {
-      roomCode = generateRoomCode();
-      attempts++;
-    } while (rooms.has(roomCode) && attempts < 10);
-
-    if (attempts >= 10) {
-      socket.emit('error', { message: 'Не удалось создать комнату. Попробуйте позже.' });
-      return;
-    }
-
-    // Создаём комнату
-    rooms.set(roomCode, new Map());
-    console.log(`[Room] Created: ${roomCode}`);
-
-    // Присоединяем создателя к комнате
-    const room = rooms.get(roomCode);
-    room.set(sessionId, { socketId: socket.id, name });
-    socket.join(roomCode);
-
-    // Отправляем код комнаты создателю
-    socket.emit('room-created', { 
-      roomCode, 
-      sessionId,
-      participants: Array.from(room.values()).map(p => ({ sessionId: p.sessionId, name: p.name }))
-    });
-
-    console.log(`[Room] ${roomCode}: ${sessionId} (${name}) joined as creator`);
   });
 
-  // Вход в существующую комнату
-  socket.on('join-room', (data) => {
-    const { sessionId, name, roomCode } = data;
+  io.on('connection', (socket) => {
+    console.log(`[Socket] Connected: ${socket.id}`);
 
-    // Валидация формата кода
-    if (!isValidRoomCode(roomCode)) {
-      socket.emit('error', { 
-        message: 'Неверный формат кода. Код должен содержать 6 латинских букв или цифр.' 
-      });
-      return;
-    }
-
-    const room = rooms.get(roomCode.toUpperCase());
-    
-    // Комната не найдена
-    if (!room) {
-      socket.emit('error', { 
-        message: 'Комната не найдена. Проверьте код или создайте новую комнату.' 
-      });
-      return;
-    }
-
-    // Проверка на переполнение (максимум 5 участников)
-    if (room.size >= 5) {
-      socket.emit('room-full', { message: 'Комната переполнена. Максимум 5 участников.' });
-      return;
-    }
-
-    // Присоединяем участника
-    room.set(sessionId, { socketId: socket.id, name });
-    socket.join(roomCode.toUpperCase());
-
-    // Отправляем подтверждение входа
-    socket.emit('room-joined', { 
-      roomCode: roomCode.toUpperCase(),
-      sessionId,
-      participants: Array.from(room.values()).map(p => ({ 
-        sessionId: p.sessionId, 
-        name: p.name,
-        isSelf: p.socketId === socket.id 
-      }))
-    });
-
-    // Уведомляем остальных участников о новом пользователе
-    socket.to(roomCode.toUpperCase()).emit('user-joined', {
-      sessionId,
-      name
-    });
-
-    // Отменяем очистку комнаты если она была запланирована
-    cancelRoomCleanup(roomCode.toUpperCase());
-
-    console.log(`[Room] ${roomCode.toUpperCase()}: ${sessionId} (${name}) joined`);
-  });
-
-  // Повторный вход в комнату после переподключения
-  socket.on('rejoin-room', (data) => {
-    const { sessionId, roomCode } = data;
-    const normalizedCode = roomCode.toUpperCase();
-    const room = rooms.get(normalizedCode);
-
-    if (!room) {
-      socket.emit('error', { message: 'Комната не найдена.' });
-      return;
-    }
-
-    // Восстанавливаем сессию
-    room.set(sessionId, { socketId: socket.id, name: room.get(sessionId)?.name || 'Аноним' });
-    socket.join(normalizedCode);
-
-    socket.emit('room-rejoined', {
-      roomCode: normalizedCode,
-      sessionId,
-      participants: Array.from(room.values()).map(p => ({ sessionId: p.sessionId, name: p.name }))
-    });
-
-    console.log(`[Room] ${normalizedCode}: ${sessionId} rejoined`);
-  });
-
-  // Обмен WebRTC сигналами (SDP offer/answer)
-  socket.on('offer', (data) => {
-    const { targetSocketId, offer, sessionId, roomCode } = data;
-    io.to(targetSocketId).emit('offer', {
-      offer,
-      sessionId,
-      fromSocketId: socket.id
-    });
-  });
-
-  socket.on('answer', (data) => {
-    const { targetSocketId, answer, sessionId, roomCode } = data;
-    io.to(targetSocketId).emit('answer', {
-      answer,
-      sessionId,
-      fromSocketId: socket.id
-    });
-  });
-
-  // Обмен ICE кандидатами
-  socket.on('ice-candidate', (data) => {
-    const { targetSocketId, candidate, sessionId, roomCode } = data;
-    io.to(targetSocketId).emit('ice-candidate', {
-      candidate,
-      sessionId,
-      fromSocketId: socket.id
-    });
-  });
-
-  // Чат сообщения
-  socket.on('chat-message', (data) => {
-    const { roomCode, sessionId, name, text } = data;
-    
-    // Рассылаем сообщение всем в комнате
-    io.to(roomCode.toUpperCase()).emit('chat-message', {
-      sessionId,
-      name,
-      text,
-      timestamp: Date.now()
-    });
-
-    console.log(`[Chat] ${roomCode.toUpperCase()}: ${name}: ${text.substring(0, 50)}...`);
-  });
-
-  // Индикатор набора текста
-  socket.on('typing', (data) => {
-    const { roomCode, sessionId, name } = data;
-    socket.to(roomCode.toUpperCase()).emit('typing', { sessionId, name });
-  });
-
-  // Выход из комнаты
-  socket.on('leave-room', (data) => {
-    const { sessionId, roomCode } = data;
-    const normalizedCode = roomCode.toUpperCase();
-    const room = rooms.get(normalizedCode);
-
-    if (room) {
-      const participant = room.get(sessionId);
-      if (participant) {
-        room.delete(sessionId);
-        
-        // Уведомляем остальных
-        io.to(normalizedCode).emit('user-left', { sessionId, name: participant.name });
-        console.log(`[Room] ${normalizedCode}: ${sessionId} left`);
-
-        // Если комната пуста - запускаем таймер очистки
-        if (room.size === 0) {
-          scheduleRoomCleanup(normalizedCode);
-        }
+    // Создание новой комнаты
+    socket.on('create-room', (data = {}) => {
+      const { sessionId } = data;
+      if (typeof sessionId !== 'string' || !sessionId) {
+        socket.emit('error', { message: 'Некорректный идентификатор сессии.' });
+        return;
       }
-    }
-  });
-
-  // Отключение клиента
-  socket.on('disconnect', () => {
-    console.log(`[Socket] Disconnected: ${socket.id}`);
-
-    // Находим и удаляем участника из всех комнат
-    for (const [roomCode, room] of rooms.entries()) {
-      for (const [sessionId, participant] of room.entries()) {
-        if (participant.socketId === socket.id) {
-          room.delete(sessionId);
-          io.to(roomCode).emit('user-left', { sessionId, name: participant.name });
-          console.log(`[Room] ${roomCode}: ${sessionId} disconnected`);
-
-          // Если комната пуста - запускаем таймер очистки
-          if (room.size === 0) {
-            scheduleRoomCleanup(roomCode);
-          }
-          break;
-        }
+      const name = sanitizeName(data.name);
+      const result = rooms.createRoom(sessionId, socket.id, name);
+      if (result.error) {
+        socket.emit('error', { message: 'Не удалось создать комнату. Попробуйте позже.' });
+        return;
       }
-    }
-  });
-});
+      socket.join(result.roomCode);
+      socket.emit('room-created', {
+        roomCode: result.roomCode,
+        sessionId,
+        participants: result.participants
+      });
+      console.log(`[Room] Created: ${result.roomCode}`);
+      console.log(`[Room] ${result.roomCode}: ${sessionId} (${name}) joined as creator`);
+    });
 
-// Serve static files from client directory in production
-if (process.env.NODE_ENV === 'production') {
-  const path = require('path');
-  app.use(express.static(path.join(__dirname, '../client')));
-  
-  app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '../client/index.html'));
+    // Вход в существующую комнату
+    socket.on('join-room', (data = {}) => {
+      const { sessionId } = data;
+      if (typeof sessionId !== 'string' || !sessionId) {
+        socket.emit('error', { message: 'Некорректный идентификатор сессии.' });
+        return;
+      }
+      const name = sanitizeName(data.name);
+      const result = rooms.join(data.roomCode, sessionId, socket.id, name);
+      if (result.error === 'bad_code') {
+        socket.emit('error', {
+          message: 'Неверный формат кода. Код должен содержать 6 латинских букв или цифр.'
+        });
+        return;
+      }
+      if (result.error === 'not_found') {
+        socket.emit('error', {
+          message: 'Комната не найдена. Проверьте код или создайте новую комнату.'
+        });
+        return;
+      }
+      if (result.error === 'full') {
+        socket.emit('room-full', { message: 'Комната переполнена. Максимум 5 участников.' });
+        return;
+      }
+      socket.join(result.roomCode);
+      socket.emit('room-joined', {
+        roomCode: result.roomCode,
+        sessionId,
+        participants: result.participants.map(p => ({ ...p, isSelf: p.sessionId === sessionId }))
+      });
+      socket.to(result.roomCode).emit('user-joined', { sessionId, name });
+      console.log(`[Room] ${result.roomCode}: ${sessionId} (${name}) joined`);
+    });
+
+    // Повторный вход в комнату после переподключения
+    socket.on('rejoin-room', (data = {}) => {
+      const { sessionId } = data;
+      if (typeof sessionId !== 'string' || !sessionId) {
+        socket.emit('error', { message: 'Некорректный идентификатор сессии.' });
+        return;
+      }
+      const result = rooms.rejoin(data.roomCode, sessionId, socket.id, data.name);
+      if (result.error) {
+        if (result.error === 'full') {
+          socket.emit('room-full', { message: 'Комната переполнена. Максимум 5 участников.' });
+        } else {
+          socket.emit('error', { message: result.error === 'bad_code' ? 'Неверный формат кода.' : 'Комната не найдена.' });
+        }
+        return;
+      }
+      socket.join(result.roomCode);
+      socket.emit('room-rejoined', {
+        roomCode: result.roomCode,
+        sessionId,
+        participants: result.participants.map(p => ({ ...p, isSelf: p.sessionId === sessionId }))
+      });
+      // Остальные участники пересоздают соединение с вернувшимся
+      socket.to(result.roomCode).emit('user-joined', { sessionId, name: result.name });
+      console.log(`[Room] ${result.roomCode}: ${sessionId} rejoined`);
+    });
+
+    // Релей WebRTC-сигналов: сервер сам резолвит sessionId адресата в socketId,
+    // поэтому клиенты не обязаны знать socket id друг друга
+    const relay = (event, key) => (data = {}) => {
+      const result = rooms.relay(socket.id, data.roomCode, data.targetSessionId, { [key]: data[key] });
+      if (!result) return;
+      io.to(result.targetSocketId).emit(event, result.payload);
+    };
+    socket.on('offer', relay('offer', 'offer'));
+    socket.on('answer', relay('answer', 'answer'));
+    socket.on('ice-candidate', relay('ice-candidate', 'candidate'));
+
+    // Чат: имя и membership берём с сервера, текст ограничен по длине
+    socket.on('chat-message', (data = {}) => {
+      const sender = rooms.findMember(socket.id, data.roomCode);
+      if (!sender) return;
+      const text = typeof data.text === 'string' ? data.text.slice(0, MAX_MESSAGE_LENGTH) : '';
+      if (!text.trim()) return;
+      const roomCode = data.roomCode.toUpperCase();
+      io.to(roomCode).emit('chat-message', {
+        sessionId: sender.sessionId,
+        name: sender.name,
+        text,
+        timestamp: Date.now()
+      });
+      console.log(`[Chat] ${roomCode}: ${sender.name}: ${text.substring(0, 50)}`);
+    });
+
+    // Индикатор набора текста
+    socket.on('typing', (data = {}) => {
+      const sender = rooms.findMember(socket.id, data.roomCode);
+      if (!sender) return;
+      socket.to(data.roomCode.toUpperCase()).emit('typing', { sessionId: sender.sessionId, name: sender.name });
+    });
+
+    // Выход из комнаты
+    socket.on('leave-room', (data = {}) => {
+      const result = rooms.leave(data.roomCode, data.sessionId);
+      if (!result) return;
+      socket.leave(result.roomCode);
+      io.to(result.roomCode).emit('user-left', { sessionId: data.sessionId, name: result.name });
+      console.log(`[Room] ${result.roomCode}: ${data.sessionId} left`);
+    });
+
+    // Отключение клиента
+    socket.on('disconnect', () => {
+      console.log(`[Socket] Disconnected: ${socket.id}`);
+      const removed = rooms.removeBySocket(socket.id);
+      for (const { roomCode, sessionId, name } of removed) {
+        io.to(roomCode).emit('user-left', { sessionId, name });
+        console.log(`[Room] ${roomCode}: ${sessionId} disconnected`);
+      }
+    });
+  });
+
+  // Serve static files from client directory in production
+  if (serveStatic) {
+    app.use(express.static(path.join(__dirname, '../client')));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(__dirname, '../client/index.html'));
+    });
+  }
+
+  return { app, server, io, rooms };
+}
+
+if (require.main === module) {
+  const { server } = createSignalingServer();
+  server.listen(PORT, () => {
+    console.log(`[Server] Signaling server running on port ${PORT}`);
+    console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 }
 
-server.listen(PORT, () => {
-  console.log(`[Server] Signaling server running on port ${PORT}`);
-  console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
-module.exports = { app, server, io };
+module.exports = { createSignalingServer };

@@ -155,11 +155,13 @@ class VideoCallApp {
       await this.ui.showRoomScreen(roomCode, this.name, false);
       this.chat.init();
       
-      // Инициализируем соединения с существующими участниками
+      // Готовим соединения с существующими участниками.
+      // Инициаторами offer выступают они: это исключает glare,
+      // когда обе стороны одновременно создают offer
       for (const participant of participants) {
         if (participant.sessionId !== this.sessionId) {
           this.participants.set(participant.sessionId, participant);
-          await this.webrtc.createPeerConnection(participant.sessionId, participant.name, true);
+          await this.webrtc.createPeerConnection(participant.sessionId, participant.name, false);
         }
       }
     } catch (error) {
